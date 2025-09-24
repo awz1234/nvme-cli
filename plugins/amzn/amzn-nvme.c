@@ -475,16 +475,19 @@ static int get_stats(int argc, char **argv, struct command *cmd,
 
 	struct config {
 		char *output_format;
+		int namespace_id;
 	};
 
 	struct config cfg = {
 		.output_format = "normal",
+		.namespace_id = 0,
 	};
 
 	OPT_ARGS(opts) = {
 		OPT_FMT("output-format", 'o', &cfg.output_format,
 			"Output Format: normal|json"),
 		OPT_FLAG("details", 'd', &detail, "Detail IO histogram of each block size ranges"),
+		OPT_UINT("namespace-id", 'n', &cfg.namespace_id, "namespace ID"),
 		OPT_END()};
 
 	rc = parse_and_open(&dev, argc, argv, desc, opts);
@@ -497,11 +500,17 @@ static int get_stats(int argc, char **argv, struct command *cmd,
 		goto done;
 	}
 
+	int nsid = cfg.namespace_id ? cfg.namespace_id :
+		nvme_get_nsid(dev_fd(dev), &cfg.namespace_id);
+        if (nsid == 0) {
+		nsid = 1;
+	}
+	printf("nsid: %d\n", nsid);
 	struct nvme_get_log_args args = {
 		.args_size = sizeof(args),
 		.fd = dev_fd(dev),
 		.lid = AMZN_NVME_STATS_LOGPAGE_ID,
-		.nsid = 1,
+		.nsid = nsid,
 		.lpo = 0,
 		.lsp = NVME_LOG_LSP_NONE,
 		.lsi = 0,
