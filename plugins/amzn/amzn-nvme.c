@@ -630,7 +630,12 @@ static int get_stats(int argc, char **argv, struct command *acmd,
 		printf("Polling NVMe stats every %u sec(s); press Ctrl+C to stop\n\n",
 		       interval);
 
-		/* first snapshot becomes the baseline */
+		/* print the initial absolute snapshot */
+		if (flags & JSON)
+			amzn_print_json_stats(&log, detail);
+		else
+			amzn_print_normal_stats(&log, detail);
+
 		prev = log;
 		amzn_keep_polling = 1;
 
