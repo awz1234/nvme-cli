@@ -544,7 +544,6 @@ static int get_stats(int argc, char **argv, struct command *acmd,
 	nvme_print_flags_t flags = 0;
 	struct nvme_passthru_cmd cmd;
 	struct nvme_id_ctrl ctrl;
-	bool local_storage = false;
 	bool detail = false;
 	unsigned int interval = 0;
 	size_t len;
@@ -561,7 +560,7 @@ static int get_stats(int argc, char **argv, struct command *acmd,
 
 	NVME_ARGS(opts,
 		OPT_FLAG("details", 'd', &detail, "Detail IO histogram of each block size ranges"),
-		OPT_UINT("interval", 'i', &interval, "Polling interval in seconds (local storage only)"));
+		OPT_UINT("interval", 'i', &interval, "Polling interval in seconds"));
 
 	rc = parse_and_open(&ctx, &hdl, argc, argv, desc, opts);
 	if (rc)
@@ -575,7 +574,6 @@ static int get_stats(int argc, char **argv, struct command *acmd,
 
 	if (!strncmp((char *)ctrl.mn, AMZN_NVME_LOCAL_STORAGE_PREFIX,
 		     strlen(AMZN_NVME_LOCAL_STORAGE_PREFIX))) {
-		local_storage = true;
 		if (nvme_get_nsid(hdl, &nsid) < 0) {
 			struct nvme_id_ctrl test_ctrl;
 
@@ -589,13 +587,6 @@ static int get_stats(int argc, char **argv, struct command *acmd,
 		len = sizeof(log);
 	} else {
 		len = sizeof(log.base);
-	}
-
-	if (interval > 0 && !local_storage) {
-		fprintf(stderr, "[ERROR] %s: Interval polling is only supported for local storage devices\n",
-			__func__);
-		rc = -EINVAL;
-		goto done;
 	}
 
 	nvme_init_get_log(&cmd, nsid, AMZN_NVME_STATS_LOGPAGE_ID, NVME_CSI_NVM,
