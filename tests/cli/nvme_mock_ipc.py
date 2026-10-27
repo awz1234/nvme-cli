@@ -444,6 +444,63 @@ def run_nvme(nvme_bin, env, sysfs_dir, base_dir, *args, encoding='utf-8',
     gcov counters of such a run go to a scratch directory: the limit
     cuts their write short as well, which corrupts the .gcda files of
     the build tree."""
+    cmd, wrapped_cmd, env, gcov_dir = _wrap_nvme(
+        nvme_bin, env, sysfs_dir, base_dir, args,
+        stack_limit_kb=stack_limit_kb, close_fd=close_fd,
+        file_size_limit=file_size_limit)
+
+    stdin_args = ({'input': stdin_data} if stdin_data is not None
+                  else {'stdin': subprocess.DEVNULL})
+    _fuzz_recorder.start()
+    result = subprocess.run(wrapped_cmd, env=env,
+                            **stdin_args,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            encoding=encoding,
+                            errors='replace' if encoding else None,
+                            timeout=_NVME_TIMEOUT_S)
+    _fuzz_recorder.finish(args, sysfs_dir)
+    if gcov_dir is not None:
+        gcov_dir.cleanup()
+
+    # Print outputs to sys.stderr so they are displayed by unittest on
+    # failure. With encoding=None these are bytes, so summarise stdout
+    # rather than dumping a binary blob into the log.
+    print(f"\n--- RUN: {' '.join(cmd)} ---", file=sys.stderr)
+    if encoding is None:
+        print(f"STDOUT: {len(result.stdout)} bytes", file=sys.stderr)
+        print(f"STDERR:\n{result.stderr.decode('utf-8', 'replace')}",
+              file=sys.stderr)
+    else:
+        print(f"STDOUT:\n{result.stdout}", file=sys.stderr)
+        print(f"STDERR:\n{result.stderr}", file=sys.stderr)
+    print("-----------------------------------", file=sys.stderr)
+
+    return result
+
+
+def popen_nvme(nvme_bin, env, sysfs_dir, base_dir, *args):
+    """Start `nvme_bin *args` under libmock_nvme.c and return the Popen,
+    with stdout and stderr as pipes and line buffered text.
+
+    For a command which does not exit on its own: one that polls until it
+    is interrupted. The caller reads its output, signals it (the shell
+    exec()s nvme, so the Popen is nvme itself) and reaps it."""
+    _, wrapped_cmd, env, _ = _wrap_nvme(nvme_bin, env, sysfs_dir, base_dir,
+                                        args)
+    return subprocess.Popen(wrapped_cmd, env=env,
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            encoding='utf-8', errors='replace',
+                            bufsize=1)
+
+
+def _wrap_nvme(nvme_bin, env, sysfs_dir, base_dir, args, stack_limit_kb=None,
+               close_fd=None, file_size_limit=None):
+    """The command to run nvme under the mock, as (cmd, wrapped_cmd, env,
+    gcov_dir): @cmd for the log, @wrapped_cmd to run, and @gcov_dir for the
+    caller to clean up, if one was needed."""
     cmd = [
         nvme_bin,
         '--set-options', f'test-sysfs-dir={sysfs_dir},test-base-dir={base_dir}',
@@ -486,31 +543,4 @@ def run_nvme(nvme_bin, env, sysfs_dir, base_dir, *args, encoding='utf-8',
         'nvme-mock-wrapper',
     ] + cmd
 
-    stdin_args = ({'input': stdin_data} if stdin_data is not None
-                  else {'stdin': subprocess.DEVNULL})
-    _fuzz_recorder.start()
-    result = subprocess.run(wrapped_cmd, env=env,
-                            **stdin_args,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            encoding=encoding,
-                            errors='replace' if encoding else None,
-                            timeout=_NVME_TIMEOUT_S)
-    _fuzz_recorder.finish(args, sysfs_dir)
-    if gcov_dir is not None:
-        gcov_dir.cleanup()
-
-    # Print outputs to sys.stderr so they are displayed by unittest on
-    # failure. With encoding=None these are bytes, so summarise stdout
-    # rather than dumping a binary blob into the log.
-    print(f"\n--- RUN: {' '.join(cmd)} ---", file=sys.stderr)
-    if encoding is None:
-        print(f"STDOUT: {len(result.stdout)} bytes", file=sys.stderr)
-        print(f"STDERR:\n{result.stderr.decode('utf-8', 'replace')}",
-              file=sys.stderr)
-    else:
-        print(f"STDOUT:\n{result.stdout}", file=sys.stderr)
-        print(f"STDERR:\n{result.stderr}", file=sys.stderr)
-    print("-----------------------------------", file=sys.stderr)
-
-    return result
+    return cmd, wrapped_cmd, env, gcov_dir
