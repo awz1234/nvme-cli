@@ -426,6 +426,10 @@
 
 ### Plugins
 
+* `nvme amzn stats -o json` prints JSON now, and the command refuses
+  `-o binary` instead of accepting it. Before, it printed the normal
+  output whatever `--output-format` asked for.
+
 * The JSON output of `nvme wdc vs-smart-add-log` prints the counters,
   averages and percentages of the C1 performance statistics as 64 bit
   values. Before, a value above 2^31 - 1 came out wrapped.
