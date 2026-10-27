@@ -316,6 +316,10 @@ if python3.found()
         endif
     endif
 
+    if 'amzn' in selected_plugins
+        subdir('amzn')
+    endif
+
     if 'ocp' in selected_plugins
         subdir('ocp')
     endif
