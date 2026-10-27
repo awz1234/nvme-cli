@@ -1341,7 +1341,7 @@ plugin_amzn_opts () {
 			opts+=" --details -d --dry-run --interval= -i --no-ioctl-probing --no-retries --output-format= -o --output-format-version= --quiet --set-options= --timeout= --verbose -v"
 			valopts+=" --interval -i --output-format -o --output-format-version --set-options --timeout"
 
-			_nvme_opt_vals "--output-format -o" "normal json binary" \
+			_nvme_opt_vals "--output-format -o" "normal json" \
 			               "--output-format-version" "1 2" \
 			               "--timeout" "infinite -1"
 			;;

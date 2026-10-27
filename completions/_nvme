@@ -344,7 +344,7 @@ _nvme () {
 					;;
 
 				(stats)
-					_nvme_opt_vals "--output-format -o" "normal json binary" \
+					_nvme_opt_vals "--output-format -o" "normal json" \
 					               "--output-format-version" "1 2" \
 					               "--timeout" "infinite -1" && return
 					local _amzn_stats
@@ -356,7 +356,7 @@ _nvme () {
 						-i':alias for --interval'
 						--no-ioctl-probing':disable 64-bit IOCTL support probing'
 						--no-retries':disable retry logic on errors'
-						--output-format=':Output format: normal|json|binary'
+						--output-format=':Output format: normal|json'
 						-o':alias for --output-format'
 						--output-format-version=':output format version: 1|2'
 						--quiet':suppress informational output'
