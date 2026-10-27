@@ -197,6 +197,85 @@ meson test -C .build 'micron - *'
 meson test -C .build 'nvme-cli - print'
 ```
 
+## Coverage
+
+`scripts/build.sh -p` configures a build with `-Db_coverage=true` in
+`.build-ci`, runs the tests and writes `coverage.xml`, which the Codecov
+workflow uploads. To keep a build around and look at it by hand:
+
+```bash
+meson setup .build-cov -Db_coverage=true
+meson compile -C .build-cov
+meson test -C .build-cov --suite unit --suite mock --suite check
+gcovr -r . .build-cov --html-details .build-cov/coverage.html
+```
+
+The `e2e` suite needs hardware and the fuzz targets have their own coverage
+tool (`nvme-fuzz coverage`), so neither is in the run above. The suites which
+run the `nvme` binary hundreds of times exceed their timeout on a slow or an
+emulated machine; add `--timeout-multiplier 8` rather than read a report with
+their coverage missing.
+
+Every run of the binary of such a build adds to its counters (`.gcda`), the
+runs by hand included. So run it with `GCOV_PREFIX` pointing somewhere else,
+or start from `find .build-cov -name '*.gcda' -delete`, before reading a
+report. `nvme utils dump-command-metadata` is the one to watch: collecting
+the options of a command runs its callback as far as the argument parsing,
+so one run of it leaves every command in the tree looking like something
+ran it.
+
+### Which commands no test runs
+
+`scripts/coverage-commands.py` answers that from such a build. It takes the
+commands the binary ships from `nvme utils dump-command-metadata` (with
+`GCOV_PREFIX` set, so the dump does not add to the report it is about to
+read), maps each to the callback of its `struct command` in the sources, and
+reports the commands whose callback never got past its argument parsing --
+per component, worst first:
+
+```bash
+scripts/coverage-commands.py .build-cov            # every component
+scripts/coverage-commands.py .build-cov -c amzn    # one plugin
+scripts/coverage-commands.py .build-cov -a -n 0    # all, without functions
+```
+
+```
+amzn: 0 of 2 commands run by a test, 7% of the plugin's lines covered
+Commands without a test:
+  nvme amzn id-ctrl
+  nvme amzn stats
+Largest uncovered functions (lines covered / total):
+  get_stats(): 18 / 70
+  amzn_compute_stats_diff(): 0 / 43
+  amzn_json_create_detail_io(): 0 / 39
+  amzn_print_detail_io(): 0 / 32
+  amzn_print_io_stats(): 0 / 25
+```
+
+gcovr reports where a function starts but not where it ends, so a function
+reaches to the start of the next one here. Its line counts can differ by a
+line from another gcovr's or gcc's, which attribute a declaration or a
+return differently.
+
+"Run by a test" means the callback reached a line past the
+`parse_and_open()` (or `parse_args()`, ...) where it parses its arguments
+and opens the device: printing the help of a command runs the lines above
+that, and a command run without a device fails there. A callback which only
+forwards to a shared helper (`return __id_ctrl(..., amzn_id_ctrl)`) has no
+line of its own past it, so the functions it hands the work to count
+instead.
+
+A component is a plugin, or the built-in commands (`nvme`); the percentage
+covers every line of its files, not only those of its commands. The
+deprecated commands only run their replacement, so they are left out unless
+`--deprecated` is given. `--json` reads a report `gcovr --json` wrote
+earlier instead of running gcovr again, `--metadata` a saved
+`dump-command-metadata` (for a report from another machine), and
+`--baseline` a report whose coverage does not count.
+
+The mock tests are the way to cover a command without hardware; see
+[CONTRIBUTING.md](../CONTRIBUTING.md), "Add tests for a command".
+
 ## Memory Testing
 
 ### Valgrind
